@@ -5,9 +5,9 @@
 
 | Repository | Status | Has marker | Open PR | Sections | Notes |
 |------------|--------|------------|---------|----------|-------|
-| `testorg/repo-no-sync` | **no-agents-md** | — | #null | none | AGENTS.md not found in repo |
-| `testorg/repo-with-existing` | **pr-open** | yes | #null | go |  |
-| `testorg/repo-with-sync` | **no-agents-md** | — | #null | python docker | AGENTS.md not found in repo |
+| [`testorg/repo-no-sync`](https://github.com/testorg/repo-no-sync) | **no-agents-md** | — | #null | none | AGENTS.md not found in repo |
+| [`testorg/repo-with-existing`](https://github.com/testorg/repo-with-existing) | **pr-open** | yes | #null | go |  |
+| [`testorg/repo-with-sync`](https://github.com/testorg/repo-with-sync) | **no-agents-md** | — | #null | python docker | AGENTS.md not found in repo |
 
 ---
 
