@@ -158,7 +158,7 @@ for repo_name in "${REPOS[@]}"; do
 
     # ── Write row ──────────────────────────────────────────────────────
 
-    echo "| \`$repo_name\` | $status | $has_marker | $open_pr | $sections_display | $notes |" >> "$OUTPUT_FILE"
+    echo "| [\`$repo_name\`](https://github.com/$repo_name) | $status | $has_marker | $open_pr | $sections_display | $notes |" >> "$OUTPUT_FILE"
 done
 
 # ── Footer ─────────────────────────────────────────────────────────────────
