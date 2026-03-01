@@ -1,25 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 #
-# sync.sh — Sync the managed AGENTS.md to every repo listed in repos.yml.
+# sync.sh — Sync the managed AGENTS.md to every repo in the organization.
 #
-# For each repo the script:
-#   1. Reads the repo's .agents-sync.yml (or falls back to defaults in repos.yml)
+# Discovers repos dynamically via `gh repo list`. For each repo the script:
+#   1. Reads the repo's .agents-sync.yml (sections to include)
 #   2. Builds the managed portion via build-agents-md.sh
 #   3. Preserves any content below "## Repo-specific additions"
 #   4. Opens (or updates) a PR if the managed content has changed
 #
 # Requirements: gh (GitHub CLI, authenticated), yq, git
 # Usage:        ./scripts/sync.sh [--dry-run]
+#
+# Environment:
+#   GITHUB_REPOSITORY_OWNER — org/user to scan (auto-set in GitHub Actions)
+#   SYNC_SELF_REPO          — this repo's name, excluded from sync (default: _agent-guidance)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPOS_FILE="$REPO_ROOT/repos.yml"
 BUILD_SCRIPT="$SCRIPT_DIR/build-agents-md.sh"
 MARKER="## Repo-specific additions"
 BRANCH_NAME="agents-md-sync/update"
 DRY_RUN=false
 WORK_DIR=$(mktemp -d)
+SELF_REPO="${SYNC_SELF_REPO:-_agent-guidance}"
+
+# Resolve the org/user name: prefer env var, fall back to git remote.
+if [[ -n "${GITHUB_REPOSITORY_OWNER:-}" ]]; then
+    ORG="$GITHUB_REPOSITORY_OWNER"
+else
+    ORG=$(git remote get-url origin | sed -E 's#.*/([^/]+)/[^/]+\.git$#\1#; s#.*/([^/]+)/[^/]+$#\1#')
+fi
 
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
@@ -31,28 +42,43 @@ log()  { echo "  $*"; }
 fail() { echo "  ERROR: $*"; }
 
 read_sections_from_yaml() {
-    # Read sections array from a YAML string on stdin.
     yq -r '.sections // [] | .[]' 2>/dev/null || true
 }
 
-# ── Main loop ──────────────────────────────────────────────────────────────
+# ── Discover repos ─────────────────────────────────────────────────────────
 
-repo_count=$(yq '.repos | length' "$REPOS_FILE")
+echo "Scanning repos for: $ORG (excluding $SELF_REPO)"
+echo ""
 
-if [[ "$repo_count" -eq 0 ]]; then
-    echo "repos.yml has no entries — nothing to sync."
+mapfile -t REPOS < <(
+    gh repo list "$ORG" \
+        --no-archived \
+        --source \
+        --json nameWithOwner \
+        --limit 1000 \
+        --jq '.[].nameWithOwner' \
+    | grep -v "/${SELF_REPO}$" \
+    | sort
+)
+
+if [[ ${#REPOS[@]} -eq 0 ]]; then
+    echo "No repos found in $ORG — nothing to sync."
     exit 0
 fi
 
-for ((i = 0; i < repo_count; i++)); do
-    repo_name=$(yq -r ".repos[$i].name" "$REPOS_FILE")
+echo "Found ${#REPOS[@]} repo(s):"
+printf '  %s\n' "${REPOS[@]}"
+echo ""
+
+# ── Main loop ──────────────────────────────────────────────────────────────
+
+for repo_name in "${REPOS[@]}"; do
     echo "=== $repo_name ==="
 
-    # ── Resolve sections ───────────────────────────────────────────────
+    # ── Resolve sections from repo's .agents-sync.yml ──────────────────
 
     sections=()
 
-    # Try the repo's own .agents-sync.yml first (via GitHub API).
     remote_yaml=$(gh api "repos/$repo_name/contents/.agents-sync.yml" \
         --jq '.content' 2>/dev/null || true)
 
@@ -60,13 +86,6 @@ for ((i = 0; i < repo_count; i++)); do
         while IFS= read -r s; do
             [[ -n "$s" ]] && sections+=("$s")
         done < <(echo "$remote_yaml" | base64 -d | read_sections_from_yaml)
-    fi
-
-    # Fall back to default_sections in repos.yml.
-    if [[ ${#sections[@]} -eq 0 ]]; then
-        while IFS= read -r s; do
-            [[ -n "$s" ]] && sections+=("$s")
-        done < <(yq -r ".repos[$i].default_sections // [] | .[]" "$REPOS_FILE" 2>/dev/null)
     fi
 
     log "Sections: ${sections[*]:-none}"
@@ -145,7 +164,7 @@ Managed content updated by the central _agent-guidance repository." || {
             --title "chore: sync AGENTS.md from _agent-guidance" \
             --body "$(cat <<EOF
 Automated sync of the managed portion of \`AGENTS.md\` from the central
-[\`_agent-guidance\`] repository.
+[\`_agent-guidance\`](https://github.com/${ORG}/${SELF_REPO}) repository.
 
 **Sections included:** ${sections[*]:-none}
 

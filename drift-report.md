@@ -4,7 +4,7 @@
 
 | Repository | Status | Has marker | Open PR | Sections | Notes |
 |------------|--------|------------|---------|----------|-------|
-| *(no repos registered)* | — | — | — | — | Add repos to repos.yml |
+| *(not yet run)* | — | — | — | — | Trigger the drift-report workflow to populate |
 
 ---
 
