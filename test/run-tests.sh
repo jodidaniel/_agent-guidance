@@ -322,6 +322,63 @@ test_sync_full() {
     assert_contains "$verify_sync/AGENTS.md" "## Python" "repo-with-sync: python section present"
     assert_contains "$verify_sync/AGENTS.md" "## Docker" "repo-with-sync: docker section present"
     assert_contains "$verify_sync/AGENTS.md" "## Repo-specific additions" "repo-with-sync: marker header added"
+
+    # Verify summary line
+    assert_contains "$TEST_DIR/sync-full-output.txt" "Sync complete:" "sync shows summary line"
+    assert_contains "$TEST_DIR/sync-full-output.txt" "3 synced" "sync reports 3 synced"
+    assert_contains "$TEST_DIR/sync-full-output.txt" "0 failed" "sync reports 0 failed"
+}
+
+# ── Test 3b: sync.sh exits non-zero on per-repo failure ───────────────
+
+test_sync_failure_exit_code() {
+    echo ""
+    echo "=== Test: sync.sh (failure exit code) ==="
+
+    # Create a mock gh that lists repos but clone always fails
+    local gh_fail_mock="$TEST_DIR/bin-fail/gh"
+    mkdir -p "$TEST_DIR/bin-fail"
+    cat > "$gh_fail_mock" <<'GHSCRIPT'
+#!/usr/bin/env bash
+case "$1" in
+    repo)
+        case "$2" in
+            list)
+                jq_filter=""
+                for arg in "$@"; do
+                    if [[ "$prev" == "--jq" ]]; then jq_filter="$arg"; fi
+                    prev="$arg"
+                done
+                json='[{"nameWithOwner":"testorg/some-repo"}]'
+                if [[ -n "$jq_filter" ]]; then
+                    echo "$json" | jq -r "$jq_filter"
+                else
+                    echo "$json"
+                fi
+                ;;
+            clone)
+                echo "ERROR: permission denied" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+esac
+GHSCRIPT
+    chmod +x "$gh_fail_mock"
+
+    local exit_code=0
+    GITHUB_REPOSITORY_OWNER=testorg \
+    MOCK_BARE_DIR="$TEST_DIR/bare" \
+    PATH="$TEST_DIR/bin-fail:$PATH" \
+    "$REPO_ROOT/scripts/sync.sh" > "$TEST_DIR/sync-fail-output.txt" 2>&1 || exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        pass "sync exits non-zero when repos fail"
+    else
+        fail "sync should exit non-zero when repos fail (got exit code 0)"
+    fi
+
+    assert_contains "$TEST_DIR/sync-fail-output.txt" "1 failed" "sync reports failure count"
 }
 
 # ── Test 4: drift-report.sh ───────────────────────────────────────────────
@@ -361,6 +418,7 @@ create_mock_gh
 test_build_script
 test_sync_dry_run
 test_sync_full
+test_sync_failure_exit_code
 test_drift_report
 
 echo ""

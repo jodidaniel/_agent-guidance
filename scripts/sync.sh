@@ -41,6 +41,10 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 log()  { echo "  $*"; }
 fail() { echo "  ERROR: $*"; }
 
+FAIL_COUNT=0
+OK_COUNT=0
+SKIP_COUNT=0
+
 read_sections_from_yaml() {
     yq -r '.sections // [] | .[]' 2>/dev/null || true
 }
@@ -100,10 +104,16 @@ for repo_name in "${REPOS[@]}"; do
     # ── Clone & prepare ────────────────────────────────────────────────
 
     repo_dir="$WORK_DIR/$(echo "$repo_name" | tr '/' '_')"
-    gh repo clone "$repo_name" "$repo_dir" -- --depth 1 2>/dev/null || {
-        fail "clone failed"; continue
-    }
+    if ! gh repo clone "$repo_name" "$repo_dir" -- --depth 1; then
+        fail "clone failed for $repo_name"
+        ((FAIL_COUNT++)) || true
+        continue
+    fi
     cd "$repo_dir"
+
+    # Configure git identity for commits (not inherited in fresh clones)
+    git config user.name "agents-md-sync[bot]"
+    git config user.email "agents-md-sync[bot]@users.noreply.github.com"
 
     # ── Preserve repo-specific content ─────────────────────────────────
 
@@ -126,12 +136,14 @@ for repo_name in "${REPOS[@]}"; do
 
     if [[ -f AGENTS.md ]] && diff -q <(echo "$new_agents_md") AGENTS.md &>/dev/null; then
         log "Up to date — skipping."
+        ((SKIP_COUNT++)) || true
         cd "$REPO_ROOT"
         continue
     fi
 
     if $DRY_RUN; then
         log "[DRY RUN] Would update AGENTS.md"
+        ((SKIP_COUNT++)) || true
         cd "$REPO_ROOT"
         continue
     fi
@@ -139,7 +151,9 @@ for repo_name in "${REPOS[@]}"; do
     # ── Branch, commit, push ───────────────────────────────────────────
 
     git checkout -b "$BRANCH_NAME" 2>/dev/null || git checkout "$BRANCH_NAME" 2>/dev/null || {
-        fail "could not create branch"; cd "$REPO_ROOT"; continue
+        fail "could not create branch in $repo_name"
+        ((FAIL_COUNT++)) || true
+        cd "$REPO_ROOT"; continue
     }
 
     echo "$new_agents_md" > AGENTS.md
@@ -148,12 +162,16 @@ for repo_name in "${REPOS[@]}"; do
 
 Sections: ${sections[*]:-none}
 Managed content updated by the central _agent-guidance repository." || {
-        log "Nothing to commit."; cd "$REPO_ROOT"; continue
+        log "Nothing to commit."
+        ((SKIP_COUNT++)) || true
+        cd "$REPO_ROOT"; continue
     }
 
-    git push -u origin "$BRANCH_NAME" 2>/dev/null || {
-        fail "push failed"; cd "$REPO_ROOT"; continue
-    }
+    if ! git push -u origin "$BRANCH_NAME"; then
+        fail "push failed for $repo_name"
+        ((FAIL_COUNT++)) || true
+        cd "$REPO_ROOT"; continue
+    fi
 
     # ── Open or update PR ──────────────────────────────────────────────
 
@@ -162,8 +180,9 @@ Managed content updated by the central _agent-guidance repository." || {
 
     if [[ -n "$existing_pr" ]]; then
         log "PR #$existing_pr already exists — branch updated."
+        ((OK_COUNT++)) || true
     else
-        gh pr create \
+        if gh pr create \
             --title "chore: sync AGENTS.md from _agent-guidance" \
             --body "$(cat <<EOF
 Automated sync of the managed portion of \`AGENTS.md\` from the central
@@ -173,11 +192,21 @@ Automated sync of the managed portion of \`AGENTS.md\` from the central
 
 Content below \`## Repo-specific additions\` has been preserved.
 EOF
-)" && log "PR created." || fail "PR creation failed"
+)"; then
+            log "PR created."
+            ((OK_COUNT++)) || true
+        else
+            fail "PR creation failed for $repo_name"
+            ((FAIL_COUNT++)) || true
+        fi
     fi
 
     cd "$REPO_ROOT"
 done
 
 echo ""
-echo "=== Sync complete ==="
+echo "=== Sync complete: $OK_COUNT synced, $SKIP_COUNT skipped, $FAIL_COUNT failed ==="
+
+if [[ $FAIL_COUNT -gt 0 ]]; then
+    exit 1
+fi
