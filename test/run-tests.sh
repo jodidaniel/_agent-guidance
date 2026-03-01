@@ -14,6 +14,14 @@ FAIL=0
 
 trap 'rm -rf "$TEST_DIR"' EXIT
 
+# Ensure git identity is configured (CI runners may not have this set globally).
+if ! git config --global user.name &>/dev/null; then
+    git config --global user.name "test-runner"
+fi
+if ! git config --global user.email &>/dev/null; then
+    git config --global user.email "test@localhost"
+fi
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
