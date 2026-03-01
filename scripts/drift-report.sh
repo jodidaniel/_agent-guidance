@@ -51,16 +51,19 @@ fetch_file_content() {
 
 echo "Scanning repos for: $ORG (excluding $SELF_REPO)"
 
-mapfile -t REPOS < <(
+# Capture repo list via command substitution so failures propagate under set -e.
+# Process substitution <(...) silently swallows errors, which would cause the
+# script to report success while doing nothing.
+repo_list_raw=$(
     gh repo list "$ORG" \
         --no-archived \
         --source \
         --json nameWithOwner \
         --limit 1000 \
-        --jq '.[].nameWithOwner' \
-    | grep -v "/${SELF_REPO}$" \
-    | sort
+        --jq '.[].nameWithOwner'
 )
+
+mapfile -t REPOS < <(echo "$repo_list_raw" | grep -v "/${SELF_REPO}$" | sort)
 
 echo "Found ${#REPOS[@]} repo(s)"
 echo ""
