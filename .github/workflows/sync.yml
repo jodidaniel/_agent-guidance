@@ -2,11 +2,12 @@ name: Sync AGENTS.md to downstream repos
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     paths:
       - "agents-md/**"
       - "scripts/build-agents-md.sh"
       - "scripts/sync.sh"
+      - ".github/workflows/sync.yml"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,7 +32,11 @@ jobs:
 
       - name: Run sync
         env:
-          GH_TOKEN: ${{ secrets.ORG_JODIDANIEL_READONLY_CONTENTS_PRS }}
+          # Token requires: contents:write (push branches), pull_requests:write (open PRs),
+          # metadata:read (list repos) on all target repos in the org.
+          GH_TOKEN: ${{ secrets.ORG_JODIDANIEL_READWRITE_CONTENTS_PRS }}
+          # NOTE: previously referenced ORG_JODIDANIEL_READONLY_CONTENTS_PRS which
+          # lacked write access — push and PR creation would silently fail.
         run: |
           chmod +x scripts/sync.sh scripts/build-agents-md.sh
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
