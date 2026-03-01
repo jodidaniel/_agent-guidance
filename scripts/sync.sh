@@ -195,7 +195,7 @@ Managed content updated by the central _agent-guidance repository." || {
 
     # ── Open or update PR ──────────────────────────────────────────────
 
-    existing_pr=$(gh pr list --head "$BRANCH_NAME" --json number \
+    existing_pr=$(gh pr list --repo "$repo_name" --head "$BRANCH_NAME" --json number \
         --jq '.[0].number // empty' 2>/dev/null || true)
 
     if [[ -n "$existing_pr" ]]; then
@@ -203,6 +203,8 @@ Managed content updated by the central _agent-guidance repository." || {
         ((OK_COUNT++)) || true
     else
         if gh pr create \
+            --repo "$repo_name" \
+            --head "$BRANCH_NAME" \
             --title "chore: sync AGENTS.md from _agent-guidance" \
             --body "$(cat <<EOF
 Automated sync of the managed portion of \`AGENTS.md\` from the central
