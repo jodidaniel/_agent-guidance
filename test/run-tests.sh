@@ -233,7 +233,11 @@ case "$1" in
                     echo "$json"
                 fi
                 ;;
-            create) echo "https://github.com/mock/pr/1" ;;
+            create)
+                # Log PR creation to a file for test verification
+                echo "pr-created" >> "${MOCK_PR_LOG:-/dev/null}"
+                echo "https://github.com/mock/pr/1"
+                ;;
         esac
         ;;
 esac
@@ -304,10 +308,14 @@ test_sync_full() {
     echo ""
     echo "=== Test: sync.sh (full run) ==="
 
+    local pr_log="$TEST_DIR/pr-creations.log"
+    rm -f "$pr_log"
+
     local output
     output=$(
         GITHUB_REPOSITORY_OWNER=testorg \
         MOCK_BARE_DIR="$TEST_DIR/bare" \
+        MOCK_PR_LOG="$pr_log" \
         PATH="$TEST_DIR/bin:$PATH" \
         "$REPO_ROOT/scripts/sync.sh" 2>&1
     ) || true
@@ -363,6 +371,36 @@ test_sync_full() {
     assert_contains "$verify_nomarker/AGENTS.md" "Use conventional commit messages" "repo-existing-no-marker: all original lines preserved"
     assert_contains "$verify_nomarker/AGENTS.md" "## Python" "repo-existing-no-marker: managed python section present"
     assert_contains "$verify_nomarker/AGENTS.md" "BEGIN MANAGED SECTION" "repo-existing-no-marker: managed section marker present"
+
+    # Verify content ordering for no-marker repo: existing content BEFORE marker, managed AFTER
+    local marker_line managed_line existing_line
+    marker_line=$(grep -n "## Repo-specific additions" "$verify_nomarker/AGENTS.md" | head -1 | cut -d: -f1)
+    existing_line=$(grep -n "# Our Custom Agent Guide" "$verify_nomarker/AGENTS.md" | head -1 | cut -d: -f1)
+    managed_line=$(grep -n "BEGIN MANAGED SECTION" "$verify_nomarker/AGENTS.md" | head -1 | cut -d: -f1)
+    if [[ -n "$existing_line" && -n "$marker_line" && "$existing_line" -lt "$marker_line" ]]; then
+        pass "repo-existing-no-marker: existing content appears before marker"
+    else
+        fail "repo-existing-no-marker: existing content appears before marker — existing at line $existing_line, marker at line $marker_line"
+    fi
+    if [[ -n "$managed_line" && -n "$marker_line" && "$managed_line" -gt "$marker_line" ]]; then
+        pass "repo-existing-no-marker: managed content appears after marker"
+    else
+        fail "repo-existing-no-marker: managed content appears after marker — managed at line $managed_line, marker at line $marker_line"
+    fi
+
+    # Verify PRs were created for all repos (4 repos should get PRs)
+    if [[ -f "$pr_log" ]]; then
+        local pr_count
+        pr_count=$(wc -l < "$pr_log")
+        if [[ "$pr_count" -eq 4 ]]; then
+            pass "sync created PRs for all 4 repos"
+        else
+            fail "sync created PRs for all 4 repos — got $pr_count PR creations"
+        fi
+    else
+        fail "sync created PRs for all 4 repos — no PR log file found"
+    fi
+    assert_contains "$TEST_DIR/sync-full-output.txt" "PR created." "sync output shows PR created"
 
     # Verify summary line
     assert_contains "$TEST_DIR/sync-full-output.txt" "Sync complete:" "sync shows summary line"

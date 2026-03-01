@@ -126,16 +126,18 @@ for repo_name in "${REPOS[@]}"; do
     # ── Preserve repo-specific content ─────────────────────────────────
 
     repo_specific=""
+    existing_prefix=""
     if [[ -f AGENTS.md ]]; then
         if grep -qF "$MARKER" AGENTS.md; then
             repo_specific=$(sed -n "/^${MARKER}/,\$p" AGENTS.md)
         else
-            # Existing AGENTS.md without marker — preserve entire content as repo-specific
-            repo_specific="$(printf '%s\n\n%s' "$MARKER" "$(cat AGENTS.md)")"
+            # Existing AGENTS.md without marker — preserve entire content above
+            # the marker heading, with managed content added below it
+            existing_prefix="$(cat AGENTS.md)"
         fi
     fi
 
-    if [[ -z "$repo_specific" ]]; then
+    if [[ -z "$repo_specific" && -z "$existing_prefix" ]]; then
         repo_specific="$(printf '%s\n\n%s\n' \
             "$MARKER" \
             "<!-- Add your repo-specific agent guidance below this line -->")"
@@ -143,7 +145,12 @@ for repo_name in "${REPOS[@]}"; do
 
     # ── Assemble ───────────────────────────────────────────────────────
 
-    new_agents_md="$(printf '%s%s\n' "$managed_content" "$repo_specific")"
+    if [[ -n "$existing_prefix" ]]; then
+        # No-marker case: existing content on top, marker, then managed content
+        new_agents_md="$(printf '%s\n\n%s\n\n%s' "$existing_prefix" "$MARKER" "$managed_content")"
+    else
+        new_agents_md="$(printf '%s%s\n' "$managed_content" "$repo_specific")"
+    fi
 
     # ── Diff check ─────────────────────────────────────────────────────
 
@@ -189,7 +196,7 @@ Managed content updated by the central _agent-guidance repository." || {
     # ── Open or update PR ──────────────────────────────────────────────
 
     existing_pr=$(gh pr list --head "$BRANCH_NAME" --json number \
-        --jq '.[0].number' 2>/dev/null || true)
+        --jq '.[0].number // empty' 2>/dev/null || true)
 
     if [[ -n "$existing_pr" ]]; then
         log "PR #$existing_pr already exists — branch updated."
