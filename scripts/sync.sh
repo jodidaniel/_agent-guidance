@@ -126,8 +126,13 @@ for repo_name in "${REPOS[@]}"; do
     # ── Preserve repo-specific content ─────────────────────────────────
 
     repo_specific=""
-    if [[ -f AGENTS.md ]] && grep -qF "$MARKER" AGENTS.md; then
-        repo_specific=$(sed -n "/^${MARKER}/,\$p" AGENTS.md)
+    if [[ -f AGENTS.md ]]; then
+        if grep -qF "$MARKER" AGENTS.md; then
+            repo_specific=$(sed -n "/^${MARKER}/,\$p" AGENTS.md)
+        else
+            # Existing AGENTS.md without marker — preserve entire content as repo-specific
+            repo_specific="$(printf '%s\n\n%s' "$MARKER" "$(cat AGENTS.md)")"
+        fi
     fi
 
     if [[ -z "$repo_specific" ]]; then

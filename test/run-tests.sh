@@ -99,6 +99,31 @@ MD
     git commit -m "init" >/dev/null 2>&1
     git push origin HEAD:main >/dev/null 2>&1
 
+    # Mock repo 4: has existing AGENTS.md WITHOUT the repo-specific marker
+    local repo4_bare="$TEST_DIR/bare/testorg_repo-existing-no-marker"
+    local repo4_work="$TEST_DIR/work/repo-existing-no-marker"
+    mkdir -p "$repo4_bare" "$repo4_work"
+    git init --bare --initial-branch=main "$repo4_bare" >/dev/null 2>&1
+    git init --initial-branch=main "$repo4_work" >/dev/null 2>&1
+    cd "$repo4_work"
+    git config commit.gpgsign false
+    git remote add origin "$repo4_bare"
+    cat > .agents-sync.yml <<'YAML'
+sections:
+  - python
+YAML
+    cat > AGENTS.md <<'MD'
+# Our Custom Agent Guide
+
+Follow these repo-specific rules when working in this codebase.
+
+- Always run linting before commits
+- Use conventional commit messages
+MD
+    git add .agents-sync.yml AGENTS.md
+    git commit -m "init" >/dev/null 2>&1
+    git push origin HEAD:main >/dev/null 2>&1
+
     cd "$REPO_ROOT"
 }
 
@@ -134,6 +159,7 @@ case "$1" in
                   {"nameWithOwner":"testorg/repo-with-sync"},
                   {"nameWithOwner":"testorg/repo-no-sync"},
                   {"nameWithOwner":"testorg/repo-with-existing"},
+                  {"nameWithOwner":"testorg/repo-existing-no-marker"},
                   {"nameWithOwner":"testorg/_agent-guidance"}
                 ]'
                 # Find --jq filter in remaining args
@@ -323,9 +349,24 @@ test_sync_full() {
     assert_contains "$verify_sync/AGENTS.md" "## Docker" "repo-with-sync: docker section present"
     assert_contains "$verify_sync/AGENTS.md" "## Repo-specific additions" "repo-with-sync: marker header added"
 
+    # Verify repo-existing-no-marker preserved existing content under the marker
+    local nomarker_bare="$TEST_DIR/bare/testorg_repo-existing-no-marker"
+    local verify_nomarker="$TEST_DIR/verify-nomarker"
+    git clone "$nomarker_bare" "$verify_nomarker" -b agents-md-sync/update 2>/dev/null || {
+        fail "repo-existing-no-marker: sync branch not created"
+        return
+    }
+
+    assert_contains "$verify_nomarker/AGENTS.md" "## Repo-specific additions" "repo-existing-no-marker: marker header added"
+    assert_contains "$verify_nomarker/AGENTS.md" "# Our Custom Agent Guide" "repo-existing-no-marker: original heading preserved"
+    assert_contains "$verify_nomarker/AGENTS.md" "Always run linting before commits" "repo-existing-no-marker: original content preserved"
+    assert_contains "$verify_nomarker/AGENTS.md" "Use conventional commit messages" "repo-existing-no-marker: all original lines preserved"
+    assert_contains "$verify_nomarker/AGENTS.md" "## Python" "repo-existing-no-marker: managed python section present"
+    assert_contains "$verify_nomarker/AGENTS.md" "BEGIN MANAGED SECTION" "repo-existing-no-marker: managed section marker present"
+
     # Verify summary line
     assert_contains "$TEST_DIR/sync-full-output.txt" "Sync complete:" "sync shows summary line"
-    assert_contains "$TEST_DIR/sync-full-output.txt" "3 synced" "sync reports 3 synced"
+    assert_contains "$TEST_DIR/sync-full-output.txt" "4 synced" "sync reports 4 synced"
     assert_contains "$TEST_DIR/sync-full-output.txt" "0 failed" "sync reports 0 failed"
 }
 
@@ -403,7 +444,7 @@ test_drift_report() {
     assert_contains "$REPO_ROOT/drift-report.md" "repo-with-existing" "drift report includes repo-with-existing"
     assert_contains "$REPO_ROOT/drift-report.md" "Status legend" "drift report has legend"
     assert_contains "$REPO_ROOT/drift-report.md" "Organization:" "drift report shows org"
-    assert_contains "$REPO_ROOT/drift-report.md" "3 repo(s) scanned" "drift report shows repo count"
+    assert_contains "$REPO_ROOT/drift-report.md" "4 repo(s) scanned" "drift report shows repo count"
     assert_not_contains "$REPO_ROOT/drift-report.md" "_agent-guidance" "drift report excludes self"
 }
 
