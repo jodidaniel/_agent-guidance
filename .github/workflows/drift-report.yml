@@ -1,12 +1,6 @@
 name: Nightly drift report
 
 on:
-  push:
-    branches: ["claude/**"]
-    paths:
-      - "scripts/drift-report.sh"
-      - "scripts/build-agents-md.sh"
-      - ".github/workflows/drift-report.yml"
   schedule:
     - cron: "0 6 * * *"       # 06:00 UTC daily
   workflow_dispatch:           # manual trigger

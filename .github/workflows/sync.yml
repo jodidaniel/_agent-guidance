@@ -2,12 +2,11 @@ name: Sync AGENTS.md to downstream repos
 
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
     paths:
       - "agents-md/**"
       - "scripts/build-agents-md.sh"
       - "scripts/sync.sh"
-      - ".github/workflows/sync.yml"
   workflow_dispatch:
     inputs:
       dry_run:
