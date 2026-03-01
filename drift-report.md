@@ -1,10 +1,11 @@
 # AGENTS.md Drift Report
 
-> Last generated: 2026-03-01 16:44 UTC
+> Last generated: 2026-03-01 17:33 UTC
+> Organization: `jodidaniel` — 1 repo(s) scanned
 
 | Repository | Status | Has marker | Open PR | Sections | Notes |
 |------------|--------|------------|---------|----------|-------|
-| *(not yet run)* | — | — | — | — | Trigger the drift-report workflow to populate |
+| `jodidaniel/scratch-claude-002` | **drift-detected** | no | none | none |  |
 
 ---
 
