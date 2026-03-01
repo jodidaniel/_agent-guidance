@@ -115,6 +115,14 @@ for repo_name in "${REPOS[@]}"; do
     git config user.name "agents-md-sync[bot]"
     git config user.email "agents-md-sync[bot]@users.noreply.github.com"
 
+    # Embed token in remote URL so git push can authenticate in CI (no TTY).
+    # gh-repo-clone sets an HTTPS remote but does not persist credentials for
+    # subsequent git operations, causing:
+    #   fatal: could not read Username for 'https://github.com': No such device or address
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+        git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${repo_name}.git"
+    fi
+
     # ── Preserve repo-specific content ─────────────────────────────────
 
     repo_specific=""
