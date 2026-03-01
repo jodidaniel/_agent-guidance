@@ -1,0 +1,42 @@
+name: Sync AGENTS.md to downstream repos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agents-md/**"
+      - "repos.yml"
+      - "scripts/build-agents-md.sh"
+      - "scripts/sync.sh"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no PRs created)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Run sync
+        env:
+          GH_TOKEN: ${{ secrets.AGENTS_SYNC_TOKEN }}
+        run: |
+          chmod +x scripts/sync.sh scripts/build-agents-md.sh
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            ./scripts/sync.sh --dry-run
+          else
+            ./scripts/sync.sh
+          fi
