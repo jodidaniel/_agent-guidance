@@ -1,10 +1,13 @@
 # AGENTS.md Drift Report
 
-> Last generated: 2026-03-01 16:44 UTC
+> Last generated: 2026-03-01 18:23 UTC
+> Organization: `testorg` — 3 repo(s) scanned
 
 | Repository | Status | Has marker | Open PR | Sections | Notes |
 |------------|--------|------------|---------|----------|-------|
-| *(not yet run)* | — | — | — | — | Trigger the drift-report workflow to populate |
+| `testorg/repo-no-sync` | **no-agents-md** | — | #null | none | AGENTS.md not found in repo |
+| `testorg/repo-with-existing` | **pr-open** | yes | #null | go |  |
+| `testorg/repo-with-sync` | **no-agents-md** | — | #null | python docker | AGENTS.md not found in repo |
 
 ---
 
