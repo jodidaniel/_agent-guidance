@@ -1,6 +1,6 @@
 # AGENTS.md Drift Report
 
-> Last generated: *(not yet run)*
+> Last generated: 2026-03-01 16:44 UTC
 
 | Repository | Status | Has marker | Open PR | Sections | Notes |
 |------------|--------|------------|---------|----------|-------|
